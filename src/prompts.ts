@@ -38,21 +38,33 @@ export async function promptForVia(
 		defaultBranch = `promote/${label.replace(/[^a-zA-Z0-9._-]+/g, "-")}`;
 	}
 
+	// Check against known values OR defaults if not provided
+	const effectiveFromBranch = fromBranch ?? "development";
+	const effectiveToBranch = toBranch ?? "staging";
+
 	// If default equals from or to branch, don't provide a default (user must enter one)
 	const shouldProvideDefault =
-		defaultBranch && defaultBranch !== fromBranch && defaultBranch !== toBranch;
+		defaultBranch &&
+		defaultBranch !== effectiveFromBranch &&
+		defaultBranch !== effectiveToBranch;
 
 	const promptConfig: prompts.PromptObject = {
 		type: "text",
 		name: "via",
-		message: "Which branch should be used for promotion?",
+		message: "Which branch should the cherry-pick commits be applied to? (promotion branch)",
 		validate: (v: string | undefined) => {
 			const branch = String(v || "").trim();
 			if (!branch) return "Branch name is required.";
+			// Check against known values if provided
 			if (fromBranch && branch === fromBranch)
 				return "Cannot use the source branch as promotion branch.";
 			if (toBranch && branch === toBranch)
 				return "Cannot use the target branch as promotion branch.";
+			// Check against defaults when actual values aren't known yet
+			if (!fromBranch && branch === "development")
+				return "Cannot use the source branch (development) as promotion branch.";
+			if (!toBranch && branch === "staging")
+				return "Cannot use the target branch (staging) as promotion branch.";
 			return true;
 		}
 	};
