@@ -1,7 +1,12 @@
 import { Command } from "commander";
 import { ensureGhInstalled, listMergedPRsByLabel } from "../gh.js";
-import { ensureGitRepo, isCommitAlreadyPickedByX, getCurrentBranch } from "../git.js";
-import { promptForMissingValues, promptForVia } from "../prompts.js";
+import {
+	ensureGitRepo,
+	isCommitAlreadyPickedByX,
+	getCurrentBranch,
+	getBranchCherrybridgeConfig
+} from "../git.js";
+import { promptForMissingValues, promptForVia, promptToUseConfig } from "../prompts.js";
 
 export function statusCommand(): Command {
 	const cmd = new Command("status")
@@ -14,15 +19,23 @@ export function statusCommand(): Command {
 			ensureGitRepo();
 			await ensureGhInstalled();
 
-			const { from, to, label } = await promptForMissingValues({
-				from: opts.from,
-				to: opts.to,
-				label: opts.label
-			});
-
 			// Prompt for via if not provided, defaulting to current branch
 			const currentBranch = await getCurrentBranch();
-			const promotionBranch = opts.via ?? (await promptForVia(label, currentBranch));
+			const promotionBranch = opts.via ?? (await promptForVia("", currentBranch));
+
+			// Try to infer values from branch config
+			const branchConfig = await getBranchCherrybridgeConfig(promotionBranch);
+
+			let useConfig = false;
+			if (branchConfig.label || branchConfig.fromBranch || branchConfig.toBranch) {
+				useConfig = await promptToUseConfig(branchConfig);
+			}
+
+			const { from, to, label } = await promptForMissingValues({
+				from: opts.from ?? (useConfig ? branchConfig.fromBranch : undefined),
+				to: opts.to ?? (useConfig ? branchConfig.toBranch : undefined),
+				label: opts.label ?? (useConfig ? branchConfig.label : undefined)
+			});
 
 			// Fetch PR list
 			const prs = await listMergedPRsByLabel({ base: from, label });

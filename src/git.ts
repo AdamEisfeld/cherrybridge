@@ -86,4 +86,31 @@ export async function abortCherryPick(): Promise<void> {
 	await run("git", ["cherry-pick", "--abort"], { stdio: "inherit" });
 }
 
+export async function getBranchCherrybridgeConfig(branch: string): Promise<{
+	label?: string;
+	fromBranch?: string;
+	toBranch?: string;
+}> {
+	const label = await run("git", ["config", `branch.${branch}.cherrybridge.label`]);
+	const fromBranch = await run("git", ["config", `branch.${branch}.cherrybridge.fromBranch`]);
+	const toBranch = await run("git", ["config", `branch.${branch}.cherrybridge.toBranch`]);
+
+	return {
+		label: label.code === 0 ? label.stdout.trim() : undefined,
+		fromBranch: fromBranch.code === 0 ? fromBranch.stdout.trim() : undefined,
+		toBranch: toBranch.code === 0 ? toBranch.stdout.trim() : undefined
+	};
+}
+
+export async function setBranchCherrybridgeConfig(
+	branch: string,
+	label: string,
+	fromBranch: string,
+	toBranch: string
+): Promise<void> {
+	await run("git", ["config", `branch.${branch}.cherrybridge.label`, label]);
+	await run("git", ["config", `branch.${branch}.cherrybridge.fromBranch`, fromBranch]);
+	await run("git", ["config", `branch.${branch}.cherrybridge.toBranch`, toBranch]);
+}
+
 
