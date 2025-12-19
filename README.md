@@ -370,20 +370,31 @@ Each branch maintains separate config, so `continue` works independently.
 **PRs not being detected**
 - Ensure PRs were merged (not closed) into the source branch
 - Verify PRs have the correct label
-- Check PRs were merged with "Create a merge commit" strategy (not squash/rebase)
+- cherrybridge supports both "Create a merge commit" and "Squash and merge" strategies
+- Rebase and merge may not work reliably (commits are replayed individually)
 - Run `gh pr list --state merged --base development --label feature:ABC-123` to verify
 
 ## How It Works
 
 ### Commit Detection
 
-cherrybridge uses Git's `-x` flag when cherry-picking:
+cherrybridge uses Git's `-x` flag when cherry-picking and automatically detects the commit type:
 
+**For merge commits:**
 ```bash
 git cherry-pick -m 1 -x <merge-commit-sha>
 ```
 
+**For squash commits:**
+```bash
+git cherry-pick -x <squash-commit-sha>
+```
+
 The `-x` flag adds `(cherry picked from commit <sha>)` to the commit message. cherrybridge then searches commit messages to detect which PRs have already been cherry-picked, avoiding duplicates.
+
+cherrybridge detects commit type using `git rev-list --parents`:
+- 3 hashes = merge commit (uses `-m 1`)
+- 2 hashes = regular commit/squash (no `-m` flag)
 
 ### PR Fetching
 
@@ -391,7 +402,7 @@ Every time you run `pick` or `continue`, cherrybridge:
 
 1. Runs `git fetch --all --prune` to update local refs
 2. Uses `gh pr list` to fetch merged PRs with the specified label
-3. Filters PRs that have merge commits (required for cherry-picking)
+3. Uses the `mergeCommit` field (populated for both merge and squash merges)
 4. Sorts PRs by merge time (oldest first)
 
 ### Branch Config Storage
@@ -409,15 +420,24 @@ This is:
 - Branch-specific (each branch has its own config)
 - Automatic (no manual management needed)
 
-### Merge Commit Strategy
+### Merge Strategy Support
 
-cherrybridge requires PRs to be merged with "Create a merge commit" strategy. This is because:
+cherrybridge supports multiple merge strategies:
 
-- Merge commits have a specific structure (`-m 1` flag)
-- The merge commit SHA is what gets cherry-picked
-- Squash/rebase merges don't have merge commits
+**Merge Commits (Create a merge commit):**
+- Uses `git cherry-pick -m 1 -x` to select the first parent (PR side)
+- Works seamlessly with merge commits
 
-If your team uses squash merges, you'll need to adjust your GitHub merge settings or cherrybridge won't be able to detect those PRs.
+**Squash Merges (Squash and merge):**
+- Automatically detects squash commits (single-parent commits)
+- Uses `git cherry-pick -x` without the `-m` flag
+- GitHub provides the squash commit SHA in the `mergeCommit` field
+
+**Rebase and Merge:**
+- May not work reliably as commits are replayed individually
+- No single commit SHA represents the entire PR
+
+cherrybridge automatically detects the commit type and uses the appropriate cherry-pick command.
 
 ## Development
 
