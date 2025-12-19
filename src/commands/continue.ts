@@ -5,7 +5,8 @@ import {
 	ensureCleanWorkingTree,
 	fetchAll,
 	continueCherryPickIfInProgress,
-	getCurrentBranch
+	getCurrentBranch,
+	getBranchCherrybridgeConfig
 } from "../git.js";
 import { promptForMissingValues, promptForVia } from "../prompts.js";
 import { applyPendingCherryPicks } from "./pick.js";
@@ -33,15 +34,34 @@ export function continueCommand(): Command {
 
 			await fetchAll();
 
-			const { from, to, label } = await promptForMissingValues({
-				from: opts.from,
-				to: opts.to,
-				label: opts.label
-			});
-
 			// Prompt for via if not provided, defaulting to current branch
 			const currentBranch = await getCurrentBranch();
-			const promotionBranch = opts.via ?? (await promptForVia(label, currentBranch));
+			const promotionBranch = opts.via ?? (await promptForVia("", currentBranch));
+
+			// Try to infer values from branch config
+			const branchConfig = await getBranchCherrybridgeConfig(promotionBranch);
+
+			// For continue, automatically use config if all values are present (no prompt)
+			const hasCompleteConfig =
+				branchConfig.label && branchConfig.fromBranch && branchConfig.toBranch;
+			const useConfig = hasCompleteConfig;
+
+			if (hasCompleteConfig) {
+				console.log(`\n📋 Using cherrybridge config for this branch:`);
+				console.log(`   Label: ${branchConfig.label}`);
+				console.log(`   From: ${branchConfig.fromBranch}`);
+				console.log(`   To: ${branchConfig.toBranch}`);
+			}
+
+			const { from, to, label } = await promptForMissingValues({
+				from: opts.from ?? (useConfig ? branchConfig.fromBranch : undefined),
+				to: opts.to ?? (useConfig ? branchConfig.toBranch : undefined),
+				label: opts.label ?? (useConfig ? branchConfig.label : undefined)
+			});
+
+			// Update config in case values changed
+			const { setBranchCherrybridgeConfig } = await import("../git.js");
+			await setBranchCherrybridgeConfig(promotionBranch, label, from, to);
 
 			// If user is mid-cherry-pick conflict resolution, allow git to continue first.
 			const continued = await continueCherryPickIfInProgress();

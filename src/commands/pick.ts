@@ -8,9 +8,11 @@ import {
 	checkoutNewBranchFrom,
 	cherryPickMergeCommit,
 	isCommitAlreadyPickedByX,
-	abortCherryPickIfInProgress
+	abortCherryPickIfInProgress,
+	setBranchCherrybridgeConfig,
+	getBranchCherrybridgeConfig
 } from "../git.js";
-import { promptForMissingValues, promptForVia } from "../prompts.js";
+import { promptForMissingValues, promptForVia, confirmCherryPick, promptToUseConfig } from "../prompts.js";
 import type { PRInfo } from "../types.js";
 import { run } from "../utils.js";
 
@@ -44,6 +46,13 @@ export async function applyPendingCherryPicks(
 		console.log(`- #${pr.number} ${pr.title} (${pr.mergeCommitSha.slice(0, 8)})`);
 	}
 
+	// Ask for confirmation before proceeding
+	const confirmed = await confirmCherryPick(pending, fromBranch, toBranch, promotionBranch);
+	if (!confirmed) {
+		console.log("❌ Cherry-pick cancelled.");
+		return;
+	}
+
 	for (const pr of pending) {
 		console.log(`\n🍒 Cherry-picking PR #${pr.number}: ${pr.mergeCommitSha}`);
 		const ok = await cherryPickMergeCommit(pr.mergeCommitSha);
@@ -66,6 +75,9 @@ export async function applyPendingCherryPicks(
 		}
 	}
 
+	// Store branch config for future reference after successful completion
+	await setBranchCherrybridgeConfig(promotionBranch, label, fromBranch, toBranch);
+
 	console.log(`\n✅ Done. You can now push and open a PR into "${toBranch}".`);
 	console.log(
 		`Suggested:\n  git push -u origin ${promotionBranch}\n  gh pr create --base ${toBranch} --head ${promotionBranch}\n`
@@ -84,20 +96,31 @@ export function pickCommand(): Command {
 			await ensureGhInstalled();
 			await ensureCleanWorkingTree();
 
+			await fetchAll();
+
+			// Prompt for via if not provided, defaulting to current branch
+			const currentBranch = await getCurrentBranch();
+			const promotionBranch = opts.via ?? (await promptForVia("", currentBranch));
+
+			// Try to infer values from branch config
+			const branchConfig = await getBranchCherrybridgeConfig(promotionBranch);
+
+			let useConfig = false;
+			if (branchConfig.label || branchConfig.fromBranch || branchConfig.toBranch) {
+				useConfig = await promptToUseConfig(branchConfig);
+			}
+
 			const { from, to, label } = await promptForMissingValues({
-				from: opts.from,
-				to: opts.to,
-				label: opts.label
+				from: opts.from ?? (useConfig ? branchConfig.fromBranch : undefined),
+				to: opts.to ?? (useConfig ? branchConfig.toBranch : undefined),
+				label: opts.label ?? (useConfig ? branchConfig.label : undefined)
 			});
 
 			const fromBranch = from;
 			const toBranch = to;
 
-			await fetchAll();
-
-			// Prompt for via if not provided, defaulting to current branch
-			const currentBranch = await getCurrentBranch();
-			const promotionBranch = opts.via ?? (await promptForVia(label, currentBranch));
+			// Store config for future reference (even if we don't cherry-pick yet)
+			await setBranchCherrybridgeConfig(promotionBranch, label, fromBranch, toBranch);
 
 			// Checkout or create the branch from target base
 			await checkoutNewBranchFrom(promotionBranch, toBranch);
