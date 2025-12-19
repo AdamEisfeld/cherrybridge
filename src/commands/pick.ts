@@ -10,7 +10,7 @@ import {
 	isCommitAlreadyPickedByX,
 	abortCherryPickIfInProgress
 } from "../git.js";
-import { promptForMissingValues, promptForVia } from "../prompts.js";
+import { promptForMissingValues, promptForVia, confirmCherryPick } from "../prompts.js";
 import type { PRInfo } from "../types.js";
 import { run } from "../utils.js";
 
@@ -42,6 +42,13 @@ export async function applyPendingCherryPicks(
 	console.log(`Found ${pending.length} pending PR(s) to cherry-pick onto ${promotionBranch}:`);
 	for (const pr of pending) {
 		console.log(`- #${pr.number} ${pr.title} (${pr.mergeCommitSha.slice(0, 8)})`);
+	}
+
+	// Ask for confirmation before proceeding
+	const confirmed = await confirmCherryPick(pending, fromBranch, toBranch, promotionBranch);
+	if (!confirmed) {
+		console.log("❌ Cherry-pick cancelled.");
+		return;
 	}
 
 	for (const pr of pending) {

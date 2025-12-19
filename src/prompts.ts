@@ -1,4 +1,5 @@
 import prompts from "prompts";
+import type { PRInfo } from "./types.js";
 
 export async function promptForMissingValues(args: {
 	from?: string;
@@ -78,5 +79,31 @@ export async function promptForVia(
 	const result = (res.via as string)?.trim();
 	if (!result) throw new Error("Branch name is required.");
 	return result;
+}
+
+export async function confirmCherryPick(
+	pendingPRs: PRInfo[],
+	fromBranch: string,
+	toBranch: string,
+	promotionBranch: string
+): Promise<boolean> {
+	console.log(`\n📋 Summary:`);
+	console.log(`   From: ${fromBranch}`);
+	console.log(`   To: ${toBranch}`);
+	console.log(`   Via: ${promotionBranch}`);
+	console.log(`   PRs to cherry-pick: ${pendingPRs.length}`);
+	console.log(`\nPRs that will be cherry-picked:`);
+	for (const pr of pendingPRs) {
+		console.log(`   - #${pr.number}: ${pr.title} (${pr.mergeCommitSha.slice(0, 8)})`);
+	}
+
+	const res = await prompts({
+		type: "confirm",
+		name: "value",
+		message: `Proceed with cherry-picking ${pendingPRs.length} PR(s)?`,
+		initial: true
+	});
+
+	return res.value === true;
 }
 
