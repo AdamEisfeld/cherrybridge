@@ -34,8 +34,10 @@ export async function listMergedPRsByLabel(args: { base: string; label: string }
 		mergeCommit: { oid: string } | null;
 	}>;
 
-	// Filter PRs that were merged without a merge commit (e.g. squash/rebase into base)
-	// For now we require merge commits; later we can add fallback.
+	// Note: mergeCommit is populated for both merge commits AND squash merges
+	// For squash merges, it contains the squash commit SHA (single-parent commit)
+	// For merge commits, it contains the merge commit SHA (two-parent commit)
+	// We filter out only PRs that truly have no mergeCommit (shouldn't happen for merged PRs)
 	const prs = data
 		.filter((x) => x.mergeCommit?.oid)
 		.map((x) => ({
