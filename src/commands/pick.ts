@@ -1,4 +1,7 @@
 import { Command } from "commander";
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 import { ensureGhInstalled, listMergedPRsByLabel } from "../gh.js";
 import {
 	ensureGitRepo,
@@ -15,6 +18,12 @@ import {
 import { promptForMissingValues, promptForVia, confirmCherryPick, promptToUseConfig } from "../prompts.js";
 import type { PRInfo } from "../types.js";
 import { run } from "../utils.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const packageJson = JSON.parse(
+	readFileSync(join(__dirname, "../../package.json"), "utf-8")
+);
 
 // Shared behavior with `continue` - now takes parameters instead of loading from session
 export async function applyPendingCherryPicks(
@@ -92,6 +101,29 @@ export function pickCommand(): Command {
 		.option("--label <label>", "Label used to group PRs (e.g. feature:ABC-123)")
 		.option("--via <branch>", "Branch to use for promotion (defaults to current branch)")
 		.action(async (opts: { from?: string; to?: string; label?: string; via?: string }) => {
+			// Display ASCII art
+			console.log(`
+                           
+                              ██                                
+                  ██    ██████                                  
+                  ██  ██▒▒▒▒██                                  
+                ██████▒▒▒▒▒▒██                                  
+                ██  ██▒▒▒▒██                                    
+              ██    ██████                                      
+            ██    ██                                            
+            ██    ██                                            
+          ██        ██                                          
+        ██            ████████                                  
+    ████████        ██▒▒▒▒▒▒▒▒██                                
+  ██▒▒▒▒▒▒▒▒██    ██▒▒▒▒▒▒▒▒▒▒▒▒██                cherrybridge v${packageJson.version}                              
+██▒▒▒▒▒▒  ▒▒▒▒██  ██▒▒▒▒▒▒▒▒▒▒▒▒██                              
+██▒▒▒▒▒▒▒▒  ▒▒██  ██▒▒  ▒▒▒▒▒▒▒▒██                              
+██▒▒▒▒▒▒▒▒  ▒▒██  ██▒▒▒▒    ▒▒▒▒██                              
+██▒▒▒▒▒▒▒▒▒▒▒▒██    ██▒▒▒▒▒▒▒▒██                                
+  ██▒▒▒▒▒▒▒▒██        ████████                                  
+    ████████                                                    
+`);
+
 			ensureGitRepo();
 			await ensureGhInstalled();
 			await ensureCleanWorkingTree();

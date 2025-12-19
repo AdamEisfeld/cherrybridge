@@ -34,11 +34,26 @@ export function continueCommand(): Command {
 
 			await fetchAll();
 
-			// Prompt for via if not provided, defaulting to current branch
 			const currentBranch = await getCurrentBranch();
-			const promotionBranch = opts.via ?? (await promptForVia("", currentBranch));
 
-			// Try to infer values from branch config
+			// Check config on current branch first
+			const currentBranchConfig = await getBranchCherrybridgeConfig(currentBranch);
+			const hasCompleteConfigOnCurrent =
+				currentBranchConfig.label &&
+				currentBranchConfig.fromBranch &&
+				currentBranchConfig.toBranch;
+
+			// If config exists on current branch, use it automatically
+			// Otherwise, prompt for via branch
+			let promotionBranch: string;
+			if (hasCompleteConfigOnCurrent && !opts.via) {
+				promotionBranch = currentBranch;
+				console.log(`\n📋 Using cherrybridge config for current branch: ${currentBranch}`);
+			} else {
+				promotionBranch = opts.via ?? (await promptForVia("", currentBranch));
+			}
+
+			// Get config for the promotion branch (might be different if user specified --via)
 			const branchConfig = await getBranchCherrybridgeConfig(promotionBranch);
 
 			// For continue, automatically use config if all values are present (no prompt)

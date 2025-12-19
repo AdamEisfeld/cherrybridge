@@ -44,11 +44,31 @@ export async function checkoutNewBranchFrom(branch: string, base: string): Promi
 	await run("git", ["checkout", "-b", branch, base], { stdio: "inherit" });
 }
 
+export async function isMergeCommit(sha: string): Promise<boolean> {
+	// git rev-list --parents -n 1 <sha> returns:
+	// - 3 hashes (sha parent1 parent2) for merge commits
+	// - 2 hashes (sha parent1) for regular commits (squash merges)
+	const r = await run("git", ["rev-list", "--parents", "-n", "1", sha]);
+	if (r.code !== 0) return false;
+
+	const hashes = r.stdout.trim().split(/\s+/);
+	return hashes.length === 3; // 3 hashes = merge commit
+}
+
 export async function cherryPickMergeCommit(sha: string): Promise<boolean> {
-	// -m 1 = mainline is parent1 (development side)
-	// -x adds "(cherry picked from commit <sha>)" to message, for detection
-	const r = await run("git", ["cherry-pick", "-m", "1", "-x", sha], { stdio: "inherit" });
-	return r.code === 0;
+	const isMerge = await isMergeCommit(sha);
+
+	if (isMerge) {
+		// Merge commit - use -m 1 to select the first parent (PR side)
+		// -x adds "(cherry picked from commit <sha>)" to message, for detection
+		const r = await run("git", ["cherry-pick", "-m", "1", "-x", sha], { stdio: "inherit" });
+		return r.code === 0;
+	} else {
+		// Regular commit (squash merge) - no -m flag needed
+		// -x adds "(cherry picked from commit <sha>)" to message, for detection
+		const r = await run("git", ["cherry-pick", "-x", sha], { stdio: "inherit" });
+		return r.code === 0;
+	}
 }
 
 export async function isCommitAlreadyPickedByX(originalSha: string): Promise<boolean> {
