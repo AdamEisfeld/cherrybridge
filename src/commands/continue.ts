@@ -1,48 +1,47 @@
 import { Command } from "commander";
-import { ensureGhInstalled, listMergedPRsByLabel } from "../gh.js";
+import { ensureGhInstalled } from "../gh.js";
 import {
 	ensureGitRepo,
 	ensureCleanWorkingTree,
 	fetchAll,
-	continueCherryPickIfInProgress
+	continueCherryPickIfInProgress,
+	getCurrentBranch
 } from "../git.js";
-import { pickSessionLabelIfNeeded } from "../prompts.js";
-import { listSessionLabels, loadSession, saveSession } from "../session.js";
+import { promptForMissingValues, promptForVia } from "../prompts.js";
 import { applyPendingCherryPicks } from "./pick.js";
 import { run } from "../utils.js";
 
 export function continueCommand(): Command {
 	const cmd = new Command("continue")
-		.description("Continue an in-progress cherry-pick, then pick any newly-merged PRs for the session label.")
-		.option("--label <label>", "Label session to continue")
-		.action(async (opts: { label?: string }) => {
+		.description("Continue an in-progress cherry-pick, then pick any newly-merged PRs.")
+		.option("--from <branch>", "Source base branch PRs were merged into")
+		.option("--to <branch>", "Target base branch to promote into")
+		.option("--label <label>", "Label used to group PRs")
+		.option("--via <branch>", "Branch to use for promotion (defaults to current branch)")
+		.action(async (opts: { from?: string; to?: string; label?: string; via?: string }) => {
 			ensureGitRepo();
 			await ensureGhInstalled();
-			
+
 			// Check if we're in a cherry-pick state first
 			const cherryPickHead = await run("git", ["rev-parse", "--verify", "CHERRY_PICK_HEAD"]);
 			const isInCherryPick = cherryPickHead.code === 0;
-			
+
 			// Only require clean working tree if we're not continuing a cherry-pick
 			if (!isInCherryPick) {
 				await ensureCleanWorkingTree();
 			}
-			
+
 			await fetchAll();
 
-			const labels = await listSessionLabels();
-			if (labels.length === 0) {
-				throw new Error(`No sessions found. Run "cherrybridge pick" first.`);
-			}
+			const { from, to, label } = await promptForMissingValues({
+				from: opts.from,
+				to: opts.to,
+				label: opts.label
+			});
 
-			const label =
-				opts.label ??
-				(labels.length === 1 ? labels[0] : await pickSessionLabelIfNeeded(labels));
-
-			const session = await loadSession(label);
-			if (!session) {
-				throw new Error(`No session found for label "${label}".`);
-			}
+			// Prompt for via if not provided, defaulting to current branch
+			const currentBranch = await getCurrentBranch();
+			const promotionBranch = opts.via ?? (await promptForVia(label, currentBranch));
 
 			// If user is mid-cherry-pick conflict resolution, allow git to continue first.
 			const continued = await continueCherryPickIfInProgress();
@@ -57,15 +56,8 @@ export function continueCommand(): Command {
 				console.log("✅ Continued cherry-pick.");
 			}
 
-			// Always refresh PR list each continue run
-			const prs = await listMergedPRsByLabel({ base: session.fromBranch, label });
-			session.prs = prs;
-			session.lastSyncedAt = new Date().toISOString();
-			await saveSession(label, session);
-
-			await applyPendingCherryPicks(label);
+			await applyPendingCherryPicks(label, from, to, promotionBranch);
 		});
 
 	return cmd;
 }
-

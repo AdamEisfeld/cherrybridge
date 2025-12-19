@@ -5,14 +5,4 @@ export type PRInfo = {
 	mergedAt: string;
 };
 
-export type Session = {
-	label: string;
-	fromBranch: string;
-	toBranch: string;
-	promotionBranch: string;
-	lastSyncedAt: string | null;
-	prs: PRInfo[];
-	createdFromBranch: string;
-};
-
 

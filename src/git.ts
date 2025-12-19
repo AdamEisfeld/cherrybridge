@@ -64,7 +64,8 @@ export async function continueCherryPickIfInProgress(): Promise<boolean> {
 	const head = await run("git", ["rev-parse", "--verify", "CHERRY_PICK_HEAD"]);
 	if (head.code !== 0) return false;
 
-	const r = await run("git", ["cherry-pick", "--continue"], { stdio: "inherit" });
+	// Use --no-edit to preserve the -x flag message for detection
+	const r = await run("git", ["cherry-pick", "--continue", "--no-edit"], { stdio: "inherit" });
 	if (r.code !== 0) {
 		console.log("⚠️ Still conflicted. Resolve conflicts and rerun cherrybridge continue.");
 		return true;

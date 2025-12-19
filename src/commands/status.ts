@@ -1,36 +1,31 @@
 import { Command } from "commander";
 import { ensureGhInstalled, listMergedPRsByLabel } from "../gh.js";
-import { ensureGitRepo, isCommitAlreadyPickedByX } from "../git.js";
-import { pickSessionLabelIfNeeded } from "../prompts.js";
-import { listSessionLabels, loadSession, saveSession } from "../session.js";
+import { ensureGitRepo, isCommitAlreadyPickedByX, getCurrentBranch } from "../git.js";
+import { promptForMissingValues, promptForVia } from "../prompts.js";
 
 export function statusCommand(): Command {
 	const cmd = new Command("status")
-		.description("Show what cherrybridge thinks is pending for a session.")
-		.option("--label <label>", "Label session")
-		.action(async (opts: { label?: string }) => {
+		.description("Show what cherrybridge thinks is pending.")
+		.option("--from <branch>", "Source base branch PRs were merged into")
+		.option("--to <branch>", "Target base branch to promote into")
+		.option("--label <label>", "Label used to group PRs")
+		.option("--via <branch>", "Branch to check status for (defaults to current branch)")
+		.action(async (opts: { from?: string; to?: string; label?: string; via?: string }) => {
 			ensureGitRepo();
 			await ensureGhInstalled();
 
-			const labels = await listSessionLabels();
-			if (labels.length === 0) {
-				throw new Error(`No sessions found. Run "cherrybridge pick" first.`);
-			}
+			const { from, to, label } = await promptForMissingValues({
+				from: opts.from,
+				to: opts.to,
+				label: opts.label
+			});
 
-			const label =
-				opts.label ??
-				(labels.length === 1 ? labels[0] : await pickSessionLabelIfNeeded(labels));
+			// Prompt for via if not provided, defaulting to current branch
+			const currentBranch = await getCurrentBranch();
+			const promotionBranch = opts.via ?? (await promptForVia(label, currentBranch));
 
-			const session = await loadSession(label);
-			if (!session) {
-				throw new Error(`No session found for label "${label}".`);
-			}
-
-			// Refresh PR list for accurate status
-			const prs = await listMergedPRsByLabel({ base: session.fromBranch, label });
-			session.prs = prs;
-			session.lastSyncedAt = new Date().toISOString();
-			await saveSession(label, session);
+			// Fetch PR list
+			const prs = await listMergedPRsByLabel({ base: from, label });
 
 			const pending = [];
 			for (const pr of prs) {
@@ -39,8 +34,8 @@ export function statusCommand(): Command {
 			}
 
 			console.log(`Session: ${label}`);
-			console.log(`From: ${session.fromBranch} → To: ${session.toBranch}`);
-			console.log(`Promotion branch: ${session.promotionBranch}`);
+			console.log(`From: ${from} → To: ${to}`);
+			console.log(`Promotion branch: ${promotionBranch}`);
 			console.log(`PRs found: ${prs.length}`);
 			console.log(`Pending: ${pending.length}`);
 
@@ -54,4 +49,3 @@ export function statusCommand(): Command {
 
 	return cmd;
 }
-

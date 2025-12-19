@@ -10,23 +10,26 @@ import {
 	isCommitAlreadyPickedByX,
 	abortCherryPickIfInProgress
 } from "../git.js";
-import { chooseBranchesAndLabel } from "../prompts.js";
-import { loadSession, saveSession, ensureSessionDir } from "../session.js";
-import type { Session } from "../types.js";
+import { promptForMissingValues, promptForVia } from "../prompts.js";
+import type { PRInfo } from "../types.js";
+import { run } from "../utils.js";
 
-// Shared behavior with `continue`
-export async function applyPendingCherryPicks(label: string): Promise<void> {
-	const session = await loadSession(label);
-	if (!session) {
-		throw new Error(`No session found for label "${label}". Run "cherrybridge pick" first.`);
-	}
-
+// Shared behavior with `continue` - now takes parameters instead of loading from session
+export async function applyPendingCherryPicks(
+	label: string,
+	fromBranch: string,
+	toBranch: string,
+	promotionBranch: string
+): Promise<void> {
 	await ensureCleanWorkingTree();
-	await abortCherryPickIfInProgress(); // optional safety: refuses if mid-cherry-pick
+	await abortCherryPickIfInProgress();
+
+	// Always fetch fresh PR list
+	const prs = await listMergedPRsByLabel({ base: fromBranch, label });
 
 	// Recompute pending by scanning for -x lines
-	const pending = [];
-	for (const pr of session.prs) {
+	const pending: PRInfo[] = [];
+	for (const pr of prs) {
 		const already = await isCommitAlreadyPickedByX(pr.mergeCommitSha);
 		if (!already) pending.push(pr);
 	}
@@ -36,7 +39,7 @@ export async function applyPendingCherryPicks(label: string): Promise<void> {
 		return;
 	}
 
-	console.log(`Found ${pending.length} pending PR(s) to cherry-pick onto ${session.promotionBranch}:`);
+	console.log(`Found ${pending.length} pending PR(s) to cherry-pick onto ${promotionBranch}:`);
 	for (const pr of pending) {
 		console.log(`- #${pr.number} ${pr.title} (${pr.mergeCommitSha.slice(0, 8)})`);
 	}
@@ -47,82 +50,60 @@ export async function applyPendingCherryPicks(label: string): Promise<void> {
 
 		if (!ok) {
 			console.log(
-				`\n⚠️ Conflict encountered on ${pr.mergeCommitSha}.\n` +
-					`Resolve conflicts, then run:\n` +
-					`  cherrybridge continue\n\n` +
+				`\n⚠️ Conflict encountered on PR #${pr.number} (${pr.mergeCommitSha.slice(0, 8)}).\n` +
+					`\nTo resolve:\n` +
+					`1. Fix the conflicts in the files (remove conflict markers: <<<<<<<, =======, >>>>>>>)\n` +
+					`2. Stage the resolved files:\n` +
+					`   git add <file>\n` +
+					`   # or stage all resolved files:\n` +
+					`   git add .\n` +
+					`3. Continue the cherry-pick:\n` +
+					`   cherrybridge continue --from ${fromBranch} --to ${toBranch} --label ${label}\n\n` +
 					`Or to abort:\n` +
-					`  cherrybridge cancel\n`
+					`   cherrybridge cancel\n`
 			);
 			return;
 		}
 	}
 
-	console.log(`\n✅ Done. You can now push and open a PR into "${session.toBranch}".`);
+	console.log(`\n✅ Done. You can now push and open a PR into "${toBranch}".`);
 	console.log(
-		`Suggested:\n  git push -u origin ${session.promotionBranch}\n  gh pr create --base ${session.toBranch} --head ${session.promotionBranch}\n`
+		`Suggested:\n  git push -u origin ${promotionBranch}\n  gh pr create --base ${toBranch} --head ${promotionBranch}\n`
 	);
 }
 
 export function pickCommand(): Command {
 	const cmd = new Command("pick")
 		.description("Interactively pick merged PR merge commits (by label) onto a target branch.")
-		.option("--from <branch>", "Source base branch PRs were merged into (default: development)")
-		.option("--to <branch>", "Target base branch to promote into (default: staging)")
+		.option("--from <branch>", "Source base branch PRs were merged into")
+		.option("--to <branch>", "Target base branch to promote into")
 		.option("--label <label>", "Label used to group PRs (e.g. feature:ABC-123)")
-		.option("--branch <name>", "Promotion branch name (default: promote/<label-sanitized>)")
-		.action(
-			async (opts: { from?: string; to?: string; label?: string; branch?: string }) => {
-				ensureGitRepo();
-				await ensureGhInstalled();
-				await ensureCleanWorkingTree();
+		.option("--via <branch>", "Branch to use for promotion (defaults to current branch)")
+		.action(async (opts: { from?: string; to?: string; label?: string; via?: string }) => {
+			ensureGitRepo();
+			await ensureGhInstalled();
+			await ensureCleanWorkingTree();
 
-				const answers = await chooseBranchesAndLabel({
-					from: opts.from ?? "development",
-					to: opts.to ?? "staging",
-					label: opts.label
-				});
+			const { from, to, label } = await promptForMissingValues({
+				from: opts.from,
+				to: opts.to,
+				label: opts.label
+			});
 
-				const fromBranch = answers.from;
-				const toBranch = answers.to;
-				const label = answers.label;
-				const promotionBranch =
-					opts.branch ?? `promote/${label.replace(/[^a-zA-Z0-9._-]+/g, "-")}`;
+			const fromBranch = from;
+			const toBranch = to;
 
-				await fetchAll();
+			await fetchAll();
 
-				// Create/ensure session folder
-				await ensureSessionDir(label);
+			// Prompt for via if not provided, defaulting to current branch
+			const currentBranch = await getCurrentBranch();
+			const promotionBranch = opts.via ?? (await promptForVia(label, currentBranch));
 
-				// (Re)load session if it exists, else create a new one
-				const existingSession = await loadSession(label);
-				const session: Session =
-					existingSession ??
-					{
-						label,
-						fromBranch,
-						toBranch,
-						promotionBranch,
-						lastSyncedAt: null,
-						prs: [],
-						createdFromBranch: await getCurrentBranch()
-					};
+			// Checkout or create the branch from target base
+			await checkoutNewBranchFrom(promotionBranch, toBranch);
 
-				// Always resync PR list before doing anything.
-				const prs = await listMergedPRsByLabel({ base: fromBranch, label });
-				session.prs = prs;
-				session.fromBranch = fromBranch;
-				session.toBranch = toBranch;
-				session.promotionBranch = promotionBranch;
-				session.lastSyncedAt = new Date().toISOString();
-				await saveSession(label, session);
-
-				// Create promotion branch from target base
-				await checkoutNewBranchFrom(promotionBranch, toBranch);
-
-				await applyPendingCherryPicks(label);
-			}
-		);
+			await applyPendingCherryPicks(label, fromBranch, toBranch, promotionBranch);
+		});
 
 	return cmd;
 }
-
