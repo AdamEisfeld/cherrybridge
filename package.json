@@ -1,0 +1,25 @@
+{
+	"name": "cherrybridge",
+	"version": "0.1.0",
+	"description": "Cherry-pick merged PR merge commits (by label) from one branch to another, resumable.",
+	"bin": {
+		"cherrybridge": "dist/index.js"
+	},
+	"type": "module",
+	"scripts": {
+		"build": "tsc -p tsconfig.json",
+		"dev": "tsx src/index.ts",
+		"start": "node dist/index.js"
+	},
+	"dependencies": {
+		"commander": "^12.1.0",
+		"prompts": "^2.4.2"
+	},
+	"devDependencies": {
+		"@types/node": "^22.10.2",
+		"@types/prompts": "^2.4.9",
+		"tsx": "^4.19.2",
+		"typescript": "^5.7.2"
+	}
+}
+
