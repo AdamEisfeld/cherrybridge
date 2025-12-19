@@ -22,7 +22,7 @@ export function statusCommand(): Command {
 
 			// Prompt for via if not provided, defaulting to current branch
 			const currentBranch = await getCurrentBranch();
-			const promotionBranch = opts.via ?? (await promptForVia(label, currentBranch));
+			const promotionBranch = opts.via ?? (await promptForVia(label, currentBranch, from, to));
 
 			// Fetch PR list
 			const prs = await listMergedPRsByLabel({ base: from, label });

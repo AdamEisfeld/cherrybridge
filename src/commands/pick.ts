@@ -97,7 +97,7 @@ export function pickCommand(): Command {
 
 			// Prompt for via if not provided, defaulting to current branch
 			const currentBranch = await getCurrentBranch();
-			const promotionBranch = opts.via ?? (await promptForVia(label, currentBranch));
+			const promotionBranch = opts.via ?? (await promptForVia(label, currentBranch, fromBranch, toBranch));
 
 			// Checkout or create the branch from target base
 			await checkoutNewBranchFrom(promotionBranch, toBranch);

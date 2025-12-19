@@ -45,16 +45,38 @@ export async function promptForMissingValues(args: {
 	return { from, to, label };
 }
 
-export async function promptForVia(label: string, defaultVia?: string): Promise<string> {
-	const defaultBranch = defaultVia ?? `promote/${label.replace(/[^a-zA-Z0-9._-]+/g, "-")}`;
+export async function promptForVia(
+	label: string,
+	defaultVia?: string,
+	fromBranch?: string,
+	toBranch?: string
+): Promise<string> {
+	let defaultBranch = defaultVia ?? `promote/${label.replace(/[^a-zA-Z0-9._-]+/g, "-")}`;
 
-	const res = await prompts({
+	// If default equals from or to branch, don't provide a default (user must enter one)
+	const shouldProvideDefault = defaultBranch !== fromBranch && defaultBranch !== toBranch;
+
+	const promptConfig: prompts.PromptObject = {
 		type: "text",
 		name: "via",
 		message: "Which branch should be used for promotion?",
-		initial: defaultBranch
-	});
+		validate: (v: string | undefined) => {
+			const branch = String(v || "").trim();
+			if (!branch) return "Branch name is required.";
+			if (branch === fromBranch) return "Cannot use the source branch as promotion branch.";
+			if (branch === toBranch) return "Cannot use the target branch as promotion branch.";
+			return true;
+		}
+	};
 
-	return (res.via as string) || defaultBranch;
+	if (shouldProvideDefault) {
+		promptConfig.initial = defaultBranch;
+	}
+
+	const res = await prompts(promptConfig);
+
+	const result = (res.via as string)?.trim();
+	if (!result) throw new Error("Branch name is required.");
+	return result;
 }
 

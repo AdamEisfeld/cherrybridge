@@ -41,7 +41,7 @@ export function continueCommand(): Command {
 
 			// Prompt for via if not provided, defaulting to current branch
 			const currentBranch = await getCurrentBranch();
-			const promotionBranch = opts.via ?? (await promptForVia(label, currentBranch));
+			const promotionBranch = opts.via ?? (await promptForVia(label, currentBranch, from, to));
 
 			// If user is mid-cherry-pick conflict resolution, allow git to continue first.
 			const continued = await continueCherryPickIfInProgress();
