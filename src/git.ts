@@ -133,4 +133,10 @@ export async function setBranchCherrybridgeConfig(
 	await run("git", ["config", `branch.${branch}.cherrybridge.toBranch`, toBranch]);
 }
 
+export async function removeBranchCherrybridgeConfig(branch: string): Promise<void> {
+	await run("git", ["config", "--unset-all", `branch.${branch}.cherrybridge.label`]);
+	await run("git", ["config", "--unset-all", `branch.${branch}.cherrybridge.fromBranch`]);
+	await run("git", ["config", "--unset-all", `branch.${branch}.cherrybridge.toBranch`]);
+}
+
 

@@ -47,12 +47,14 @@ The simplest workflow:
 # Start cherry-picking PRs with a specific label
 cherrybridge pick
 
-# When prompted, enter the PR label (e.g., "feature:ABC-123")
+# When prompted:
+#   1. Enter the PR label (e.g., "feature:ABC-123")
+#   2. Enter the promotion branch name (where cherry-picks will be applied)
 # cherrybridge will:
 #   1. Fetch all merged PRs with that label from development
 #   2. Show you which PRs will be cherry-picked
 #   3. Ask for confirmation
-#   4. Cherry-pick them one by one onto a promotion branch
+#   4. Cherry-pick them one by one onto the promotion branch
 ```
 
 That's it! If there are no conflicts, you're done. If conflicts occur, see the [Conflict Resolution](#conflict-resolution) section.
@@ -83,7 +85,7 @@ cherrybridge pick --label feature:ABC-123 --from development --to staging --via 
 - `--from <branch>`: Source base branch PRs were merged into (default: `development`)
 - `--to <branch>`: Target base branch to promote into (default: `staging`)
 - `--label <label>`: Label used to group PRs (e.g., `feature:ABC-123`)
-- `--via <branch>`: Branch to use for promotion (defaults to current branch)
+- `--via <branch>`: Branch to use for promotion (where cherry-pick commits will be applied). Defaults to current branch if it's not "development" or "staging"
 
 **What happens:**
 - If `--via` branch doesn't exist, it's created from the target branch
@@ -110,7 +112,7 @@ cherrybridge continue --label feature:ABC-123 --from development --to staging --
 ```
 
 **Smart behavior:**
-- If you're on a branch with stored config, it automatically uses those values (no prompts!)
+- If you're on a branch with stored config, it automatically uses those values
 - If config is incomplete, it prompts for missing values
 - Command-line flags always override config values
 
@@ -152,14 +154,19 @@ Pending PRs:
 
 ### `cancel`
 
-Abort an in-progress cherry-pick. This runs `git cherry-pick --abort` to clean up the current cherry-pick operation.
+Abort an in-progress cherry-pick and remove branch config. This runs `git cherry-pick --abort` to clean up the current cherry-pick operation and removes the stored config for the current branch.
 
 **Usage:**
 ```bash
 cherrybridge cancel
 ```
 
-**Note:** This only aborts the current cherry-pick operation. It doesn't delete branches or affect already-completed cherry-picks.
+**What happens:**
+- Aborts the current cherry-pick operation (`git cherry-pick --abort`)
+- Removes stored config for the current branch (label, fromBranch, toBranch)
+- Provides a clean slate if you want to start over
+
+**Note:** This doesn't delete branches or affect already-completed cherry-picks. If you want to keep the config and just abort the cherry-pick, use `git cherry-pick --abort` directly.
 
 ## Advanced Usage
 
@@ -176,6 +183,8 @@ cherrybridge pick \
 ```
 
 This skips all prompts (except the confirmation before cherry-picking starts).
+
+**Note:** If you're on "development" or "staging" branch, you'll be prompted for the promotion branch name since those branches cannot be used for promotion.
 
 ### Branch Config Storage
 
@@ -318,6 +327,10 @@ cherrybridge continue
 - Running interactively
 - You're not sure of exact values
 - You want cherrybridge to remember settings (config storage)
+
+**Prompts you'll see:**
+- PR label: Always prompted if not provided via `--label`
+- Promotion branch: Prompted if not provided via `--via` and current branch is "development" or "staging" (these cannot be used as promotion branches)
 
 ### Branch Naming Conventions
 

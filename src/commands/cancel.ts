@@ -1,5 +1,11 @@
 import { Command } from "commander";
-import { ensureGitRepo, abortCherryPick, ensureCleanWorkingTree } from "../git.js";
+import {
+	ensureGitRepo,
+	abortCherryPick,
+	ensureCleanWorkingTree,
+	getCurrentBranch,
+	removeBranchCherrybridgeConfig
+} from "../git.js";
 
 export function cancelCommand(): Command {
 	const cmd = new Command("cancel")
@@ -8,7 +14,12 @@ export function cancelCommand(): Command {
 			ensureGitRepo();
 			await ensureCleanWorkingTree(false); // allow dirty since we might be in conflict state
 			await abortCherryPick();
-			console.log(`🧹 Cancelled cherry-pick.`);
+
+			// Remove config for current branch to clean up
+			const currentBranch = await getCurrentBranch();
+			await removeBranchCherrybridgeConfig(currentBranch);
+
+			console.log(`🧹 Cancelled cherry-pick and removed config.`);
 		});
 
 	return cmd;
