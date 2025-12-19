@@ -52,10 +52,14 @@ export async function promptForVia(
 	fromBranch?: string,
 	toBranch?: string
 ): Promise<string> {
-	let defaultBranch = defaultVia ?? `promote/${label.replace(/[^a-zA-Z0-9._-]+/g, "-")}`;
+	let defaultBranch = defaultVia;
+	if (!defaultBranch && label) {
+		defaultBranch = `promote/${label.replace(/[^a-zA-Z0-9._-]+/g, "-")}`;
+	}
 
 	// If default equals from or to branch, don't provide a default (user must enter one)
-	const shouldProvideDefault = defaultBranch !== fromBranch && defaultBranch !== toBranch;
+	const shouldProvideDefault =
+		defaultBranch && defaultBranch !== fromBranch && defaultBranch !== toBranch;
 
 	const promptConfig: prompts.PromptObject = {
 		type: "text",
@@ -64,13 +68,15 @@ export async function promptForVia(
 		validate: (v: string | undefined) => {
 			const branch = String(v || "").trim();
 			if (!branch) return "Branch name is required.";
-			if (branch === fromBranch) return "Cannot use the source branch as promotion branch.";
-			if (branch === toBranch) return "Cannot use the target branch as promotion branch.";
+			if (fromBranch && branch === fromBranch)
+				return "Cannot use the source branch as promotion branch.";
+			if (toBranch && branch === toBranch)
+				return "Cannot use the target branch as promotion branch.";
 			return true;
 		}
 	};
 
-	if (shouldProvideDefault) {
+	if (shouldProvideDefault && defaultBranch) {
 		promptConfig.initial = defaultBranch;
 	}
 
@@ -79,6 +85,29 @@ export async function promptForVia(
 	const result = (res.via as string)?.trim();
 	if (!result) throw new Error("Branch name is required.");
 	return result;
+}
+
+export async function promptToUseConfig(config: {
+	label?: string;
+	fromBranch?: string;
+	toBranch?: string;
+}): Promise<boolean> {
+	const hasConfig = config.label || config.fromBranch || config.toBranch;
+	if (!hasConfig) return false;
+
+	console.log(`\n📋 Found cherrybridge config for this branch:`);
+	if (config.label) console.log(`   Label: ${config.label}`);
+	if (config.fromBranch) console.log(`   From: ${config.fromBranch}`);
+	if (config.toBranch) console.log(`   To: ${config.toBranch}`);
+
+	const res = await prompts({
+		type: "confirm",
+		name: "value",
+		message: "Use these values?",
+		initial: true
+	});
+
+	return res.value === true;
 }
 
 export async function confirmCherryPick(

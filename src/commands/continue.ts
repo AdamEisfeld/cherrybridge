@@ -5,9 +5,10 @@ import {
 	ensureCleanWorkingTree,
 	fetchAll,
 	continueCherryPickIfInProgress,
-	getCurrentBranch
+	getCurrentBranch,
+	getBranchCherrybridgeConfig
 } from "../git.js";
-import { promptForMissingValues, promptForVia } from "../prompts.js";
+import { promptForMissingValues, promptForVia, promptToUseConfig } from "../prompts.js";
 import { applyPendingCherryPicks } from "./pick.js";
 import { run } from "../utils.js";
 
@@ -33,15 +34,27 @@ export function continueCommand(): Command {
 
 			await fetchAll();
 
-			const { from, to, label } = await promptForMissingValues({
-				from: opts.from,
-				to: opts.to,
-				label: opts.label
-			});
-
 			// Prompt for via if not provided, defaulting to current branch
 			const currentBranch = await getCurrentBranch();
-			const promotionBranch = opts.via ?? (await promptForVia(label, currentBranch, from, to));
+			const promotionBranch = opts.via ?? (await promptForVia("", currentBranch));
+
+			// Try to infer values from branch config
+			const branchConfig = await getBranchCherrybridgeConfig(promotionBranch);
+
+			let useConfig = false;
+			if (branchConfig.label || branchConfig.fromBranch || branchConfig.toBranch) {
+				useConfig = await promptToUseConfig(branchConfig);
+			}
+
+			const { from, to, label } = await promptForMissingValues({
+				from: opts.from ?? (useConfig ? branchConfig.fromBranch : undefined),
+				to: opts.to ?? (useConfig ? branchConfig.toBranch : undefined),
+				label: opts.label ?? (useConfig ? branchConfig.label : undefined)
+			});
+
+			// Update config in case values changed
+			const { setBranchCherrybridgeConfig } = await import("../git.js");
+			await setBranchCherrybridgeConfig(promotionBranch, label, from, to);
 
 			// If user is mid-cherry-pick conflict resolution, allow git to continue first.
 			const continued = await continueCherryPickIfInProgress();
