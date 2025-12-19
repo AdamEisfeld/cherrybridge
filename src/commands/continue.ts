@@ -8,7 +8,7 @@ import {
 	getCurrentBranch,
 	getBranchCherrybridgeConfig
 } from "../git.js";
-import { promptForMissingValues, promptForVia, promptToUseConfig } from "../prompts.js";
+import { promptForMissingValues, promptForVia } from "../prompts.js";
 import { applyPendingCherryPicks } from "./pick.js";
 import { run } from "../utils.js";
 
@@ -41,9 +41,16 @@ export function continueCommand(): Command {
 			// Try to infer values from branch config
 			const branchConfig = await getBranchCherrybridgeConfig(promotionBranch);
 
-			let useConfig = false;
-			if (branchConfig.label || branchConfig.fromBranch || branchConfig.toBranch) {
-				useConfig = await promptToUseConfig(branchConfig);
+			// For continue, automatically use config if all values are present (no prompt)
+			const hasCompleteConfig =
+				branchConfig.label && branchConfig.fromBranch && branchConfig.toBranch;
+			const useConfig = hasCompleteConfig;
+
+			if (hasCompleteConfig) {
+				console.log(`\n📋 Using cherrybridge config for this branch:`);
+				console.log(`   Label: ${branchConfig.label}`);
+				console.log(`   From: ${branchConfig.fromBranch}`);
+				console.log(`   To: ${branchConfig.toBranch}`);
 			}
 
 			const { from, to, label } = await promptForMissingValues({
