@@ -45,11 +45,22 @@ export async function checkoutNewBranchFrom(branch: string, base: string): Promi
 }
 
 export async function isMergeCommit(sha: string): Promise<boolean> {
+	// Ensure commit exists locally - try to fetch if it doesn't
+	const existsCheck = await run("git", ["cat-file", "-e", sha]);
+	if (existsCheck.code !== 0) {
+		// Commit doesn't exist locally, try to fetch it from origin
+		await run("git", ["fetch", "origin", sha], { stdio: "pipe" });
+	}
+
 	// git rev-list --parents -n 1 <sha> returns:
 	// - 3 hashes (sha parent1 parent2) for merge commits
 	// - 2 hashes (sha parent1) for regular commits (squash merges)
 	const r = await run("git", ["rev-list", "--parents", "-n", "1", sha]);
-	if (r.code !== 0) return false;
+	if (r.code !== 0) {
+		// If we still can't access it, default to treating as merge commit
+		// This is safer - git cherry-pick -m 1 will error clearly if wrong
+		return true;
+	}
 
 	const hashes = r.stdout.trim().split(/\s+/);
 	return hashes.length === 3; // 3 hashes = merge commit
