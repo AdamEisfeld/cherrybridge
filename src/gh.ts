@@ -19,6 +19,8 @@ export async function listMergedPRsByLabel(args: { base: string; label: string }
 		args.base,
 		"--label",
 		args.label,
+		"--limit",
+		"128",
 		"--json",
 		"number,title,mergedAt,mergeCommit"
 	]);
