@@ -3,6 +3,7 @@ import { pickCommand } from "./commands/pick.js";
 import { continueCommand } from "./commands/continue.js";
 import { cancelCommand } from "./commands/cancel.js";
 import { statusCommand } from "./commands/status.js";
+import { ticketsCommand } from "./commands/tickets.js";
 
 export async function runCLI(): Promise<void> {
 	const program = new Command();
@@ -16,6 +17,7 @@ export async function runCLI(): Promise<void> {
 	program.addCommand(continueCommand());
 	program.addCommand(cancelCommand());
 	program.addCommand(statusCommand());
+	program.addCommand(ticketsCommand());
 
 	await program.parseAsync(process.argv);
 }

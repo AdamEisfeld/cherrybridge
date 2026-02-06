@@ -5,4 +5,9 @@ export type PRInfo = {
 	mergedAt: string;
 };
 
+export type PRInfoWithDetails = PRInfo & {
+	headRefName?: string;
+	body?: string;
+};
+
 

@@ -38,3 +38,24 @@ export async function run(
 	});
 }
 
+export function extractJiraTickets(text: string, prefix: string): string[] {
+	if (!text) return [];
+	
+	// Escape special regex characters in prefix
+	const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	
+	// Create regex pattern: PREFIX-NUMBER (case-insensitive)
+	const pattern = new RegExp(`${escapedPrefix}-\\d+`, "gi");
+	const matches = text.match(pattern);
+	
+	if (!matches) return [];
+	
+	// Return unique tickets (case-sensitive, uppercase)
+	const uniqueTickets = new Set<string>();
+	for (const match of matches) {
+		uniqueTickets.add(match.toUpperCase());
+	}
+	
+	return Array.from(uniqueTickets).sort();
+}
+
