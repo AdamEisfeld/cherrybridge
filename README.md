@@ -9,6 +9,7 @@ Resumable cherry-picking of merged PR merge commits (selected by label) from one
 - **Automatic detection**: Detects already-picked commits using Git's `-x` flag
 - **Smart defaults**: Defaults to `development` → `staging` workflow (customizable)
 - **Branch config storage**: Remembers your settings per branch for seamless continuation
+- **File config**: Optional `.cherrybridgerc.json` for default `prefix` and `projectUrl`
 - **Conflict handling**: Clear instructions when conflicts occur
 
 ## Requirements
@@ -210,6 +211,25 @@ cherrybridge pick --label feature:ABC-123
 cherrybridge continue
 # No prompts needed!
 ```
+
+### File config
+
+You can set default `prefix` and `projectUrl` in a config file so you don't have to pass them every time.
+
+- **Filename**: `.cherrybridgerc.json`
+- **Location**: The directory where you run cherrybridge (current working directory).
+- **Keys**: `prefix` (JIRA ticket prefix), `projectUrl` (base URL for ticket links in the `pr` command body).
+- **Precedence**: Command-line flags override the file; the file overrides built-in defaults.
+
+**Example `.cherrybridgerc.json`:**
+```json
+{
+  "prefix": "PROJECT",
+  "projectUrl": "https://company.atlassian.net/browse"
+}
+```
+
+If the file is missing or invalid, cherrybridge continues with defaults and any flags you passed.
 
 ### Working with Multiple Promotion Branches
 

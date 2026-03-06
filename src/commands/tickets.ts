@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { getFileConfig } from "../config.js";
 import { ensureGhInstalled, listMergedPRsWithDetails } from "../gh.js";
 import { ensureGitRepo } from "../git.js";
 import { promptForMissingValues } from "../prompts.js";
@@ -14,13 +15,15 @@ export function ticketsCommand(): Command {
 			ensureGitRepo();
 			await ensureGhInstalled();
 
+			const fileConfig = await getFileConfig();
+
 			const { from, label } = await promptForMissingValues({
 				from: opts.from,
 				to: undefined, // Not needed for tickets command
 				label: opts.label
 			});
 
-			const prefix = opts.prefix ?? "PROJECT";
+			const prefix = opts.prefix ?? fileConfig?.prefix ?? "PROJECT";
 
 			// Fetch PRs with details
 			const prs = await listMergedPRsWithDetails({ base: from, label });

@@ -8,6 +8,15 @@ export async function ensureGhInstalled(): Promise<void> {
 	}
 }
 
+export async function getRepoUrl(): Promise<string> {
+	const r = await run("gh", ["repo", "view", "--json", "url"]);
+	if (r.code !== 0) {
+		throw new Error(r.stderr || "Failed to get repo URL. Are you in a GitHub repo and authenticated?");
+	}
+	const data = JSON.parse(r.stdout) as { url: string };
+	return data.url;
+}
+
 export async function listMergedPRsByLabel(args: { base: string; label: string }): Promise<PRInfo[]> {
 	// Requires: gh auth already done
 	const r = await run("gh", [
