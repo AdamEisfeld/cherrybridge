@@ -1,6 +1,6 @@
 {
 	"name": "cherrybridge",
-	"version": "0.1.5",
+	"version": "0.1.6",
 	"description": "Cherry-pick merged PR merge commits (by label) from one branch to another, resumable.",
 	"files": [
 		"dist/",
