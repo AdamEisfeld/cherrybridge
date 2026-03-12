@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { Command } from "commander";
 import prompts from "prompts";
 import { getFileConfig } from "../config.js";
-import { ensureGhInstalled, searchMergedPRsByTitle, addLabelToPR } from "../gh.js";
+import { ensureGhInstalled, searchMergedPRsByTitle, addLabelToPR, ensureLabelExists } from "../gh.js";
 import { ensureGitRepo } from "../git.js";
 import { confirmApplyLabel } from "../prompts.js";
 import { extractJiraTickets } from "../utils.js";
@@ -16,8 +16,9 @@ export function labelCommand(): Command {
 		.option("--label <label>", "Label to apply to the found PRs")
 		.option("--from <branch>", "Branch the PRs were merged into (default: development)")
 		.option("--prefix <prefix>", "JIRA ticket prefix (default: PROJECT)")
+		.option("--create", "Create the label in the repo if it does not exist")
 		.action(
-			async (opts: { tickets?: string; ticketsFile?: string; label?: string; from?: string; prefix?: string }) => {
+			async (opts: { tickets?: string; ticketsFile?: string; label?: string; from?: string; prefix?: string; create?: boolean }) => {
 				ensureGitRepo();
 				await ensureGhInstalled();
 
@@ -88,6 +89,11 @@ export function labelCommand(): Command {
 				if (!confirmed) {
 					console.log("Label application cancelled.");
 					return;
+				}
+
+				if (opts.create) {
+					console.log("Ensuring label exists...");
+					await ensureLabelExists(labelToApply);
 				}
 
 				const failures: number[] = [];

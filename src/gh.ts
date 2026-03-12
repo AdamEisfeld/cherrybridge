@@ -149,4 +149,11 @@ export async function addLabelToPR(prNumber: number, label: string): Promise<voi
 	}
 }
 
+export async function ensureLabelExists(label: string): Promise<void> {
+	const r = await run("gh", ["label", "create", label, "--force", "--color", "ededed"]);
+	if (r.code !== 0) {
+		throw new Error(r.stderr || "Failed to create label.");
+	}
+}
+
 

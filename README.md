@@ -189,6 +189,7 @@ cherrybridge label --tickets-file tickets.txt --label "promote-to-staging"
 - `--label <label>`: Label to apply to the found PRs (required).
 - `--from <branch>`: Branch the PRs were merged into. If omitted, you are prompted with default `development`.
 - `--prefix <prefix>`: JIRA ticket prefix for extraction (optional; default from `.cherrybridgerc.json` or `PROJECT`).
+- `--create`: Create the label in the repository if it does not exist (uses `gh label create --force`). Omit to keep current behavior (label must already exist).
 
 **What happens:**
 - Tickets are extracted from the combined text (URLs and plain IDs like `PROJECT-123` are supported).
