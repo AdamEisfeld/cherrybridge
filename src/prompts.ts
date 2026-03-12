@@ -132,10 +132,14 @@ export async function confirmCherryPick(
 export async function confirmApplyLabel(
 	tickets: string[],
 	prs: { number: number; title: string }[],
-	label: string
+	label: string,
+	baseBranch?: string
 ): Promise<boolean> {
 	console.log(`\n📋 Tickets extracted:`);
 	console.log(`   [${tickets.join(", ")}]`);
+	if (baseBranch) {
+		console.log(`\n   Branch: ${baseBranch}`);
+	}
 	console.log(`\nPRs that will receive the label "${label}":`);
 	for (const pr of prs) {
 		console.log(`   - #${pr.number}: ${pr.title}`);

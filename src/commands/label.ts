@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Command } from "commander";
+import prompts from "prompts";
 import { getFileConfig } from "../config.js";
 import { ensureGhInstalled, searchMergedPRsByTitle, addLabelToPR } from "../gh.js";
 import { ensureGitRepo } from "../git.js";
@@ -12,10 +13,11 @@ export function labelCommand(): Command {
 		.description("Extract JIRA tickets from text, find merged PRs by title, and apply a label.")
 		.option("--tickets <text>", "Inline text containing JIRA links/IDs")
 		.option("--tickets-file <path>", "Path to file containing JIRA links/IDs")
-		.option("--add-label <label>", "Label to apply to the found PRs")
+		.option("--label <label>", "Label to apply to the found PRs")
+		.option("--from <branch>", "Branch the PRs were merged into (default: development)")
 		.option("--prefix <prefix>", "JIRA ticket prefix (default: PROJECT)")
 		.action(
-			async (opts: { tickets?: string; ticketsFile?: string; addLabel?: string; prefix?: string }) => {
+			async (opts: { tickets?: string; ticketsFile?: string; label?: string; from?: string; prefix?: string }) => {
 				ensureGitRepo();
 				await ensureGhInstalled();
 
@@ -23,8 +25,8 @@ export function labelCommand(): Command {
 					console.error("Error: Provide at least one of --tickets or --tickets-file.");
 					process.exit(1);
 				}
-				if (!opts.addLabel?.trim()) {
-					console.error("Error: --add-label is required.");
+				if (!opts.label?.trim()) {
+					console.error("Error: --label is required.");
 					process.exit(1);
 				}
 
@@ -51,9 +53,25 @@ export function labelCommand(): Command {
 					return;
 				}
 
+				let baseBranch = opts.from?.trim();
+				if (!baseBranch) {
+					const res = await prompts({
+						type: "text",
+						name: "from",
+						message: "Which branch were the PRs merged into?",
+						initial: "development",
+						validate: (v: string | undefined) => (String(v || "").trim().length ? true : "Branch is required")
+					});
+					baseBranch = (res.from as string)?.trim();
+				}
+				if (!baseBranch) {
+					console.error("Error: Base branch is required.");
+					process.exit(1);
+				}
+
 				const prMap = new Map<number, { number: number; title: string }>();
 				for (const ticket of tickets) {
-					const prs = await searchMergedPRsByTitle(ticket);
+					const prs = await searchMergedPRsByTitle(ticket, baseBranch);
 					for (const pr of prs) {
 						prMap.set(pr.number, pr);
 					}
@@ -65,7 +83,8 @@ export function labelCommand(): Command {
 					return;
 				}
 
-				const confirmed = await confirmApplyLabel(tickets, prs, opts.addLabel.trim());
+				const labelToApply = opts.label.trim();
+				const confirmed = await confirmApplyLabel(tickets, prs, labelToApply, baseBranch);
 				if (!confirmed) {
 					console.log("Label application cancelled.");
 					return;
@@ -74,7 +93,7 @@ export function labelCommand(): Command {
 				const failures: number[] = [];
 				for (const pr of prs) {
 					try {
-						await addLabelToPR(pr.number, opts.addLabel.trim());
+						await addLabelToPR(pr.number, labelToApply);
 						console.log(`  Labeled #${pr.number}: ${pr.title}`);
 					} catch (err) {
 						console.error(`  Failed to label #${pr.number}: ${(err as Error).message}`);
@@ -82,7 +101,7 @@ export function labelCommand(): Command {
 					}
 				}
 
-				console.log(`\nDone. Label "${opts.addLabel.trim()}" applied to ${prs.length - failures.length} PR(s).`);
+				console.log(`\nDone. Label "${labelToApply}" applied to ${prs.length - failures.length} PR(s).`);
 				if (failures.length > 0) {
 					console.log(`Failed: ${failures.length} PR(s): #${failures.join(", #")}`);
 				}

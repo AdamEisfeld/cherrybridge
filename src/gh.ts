@@ -118,7 +118,7 @@ export async function listMergedPRsWithDetails(args: {
 
 export type PRSearchResult = { number: number; title: string };
 
-export async function searchMergedPRsByTitle(query: string): Promise<PRSearchResult[]> {
+export async function searchMergedPRsByTitle(query: string, base: string): Promise<PRSearchResult[]> {
 	const r = await run("gh", [
 		"pr",
 		"list",
@@ -126,6 +126,8 @@ export async function searchMergedPRsByTitle(query: string): Promise<PRSearchRes
 		`${query} in:title`,
 		"--state",
 		"merged",
+		"--base",
+		base,
 		"--limit",
 		"500",
 		"--json",
