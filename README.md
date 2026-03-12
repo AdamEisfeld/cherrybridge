@@ -169,6 +169,31 @@ cherrybridge cancel
 
 **Note:** This doesn't delete branches or affect already-completed cherry-picks. If you want to keep the config and just abort the cherry-pick, use `git cherry-pick --abort` directly.
 
+### `label`
+
+Extract JIRA tickets from a chunk of text (e.g. comma/newline-separated list or JIRA URLs), find all **merged** PRs in the repo whose title mentions any of those tickets, and apply a label to those PRs. Only closed-and-merged PRs are considered (not open or cancelled). Before applying, the command shows the extracted tickets and the list of PRs that will be labeled and prompts for confirmation.
+
+**Basic usage:**
+```bash
+cherrybridge label --tickets "PROJECT-123, PROJECT-456" --add-label "promote-to-staging"
+```
+
+**With a file:**
+```bash
+cherrybridge label --tickets-file tickets.txt --add-label "promote-to-staging"
+```
+
+**Options:**
+- `--tickets <text>`: Inline text containing JIRA links or IDs (optional if `--tickets-file` is set).
+- `--tickets-file <path>`: Path to a file containing the same kind of text (optional if `--tickets` is set). At least one of `--tickets` or `--tickets-file` is required.
+- `--add-label <label>`: Label to apply to the found PRs (required).
+- `--prefix <prefix>`: JIRA ticket prefix for extraction (optional; default from `.cherrybridgerc.json` or `PROJECT`).
+
+**What happens:**
+- Tickets are extracted from the combined text (URLs and plain IDs like `PROJECT-123` are supported).
+- PRs are searched by title; only merged PRs are included.
+- You see a summary of tickets and PRs and are asked to confirm before any labels are applied.
+
 ## Advanced Usage
 
 ### Using Command-Line Flags

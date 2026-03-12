@@ -116,4 +116,35 @@ export async function listMergedPRsWithDetails(args: {
 	return prs;
 }
 
+export type PRSearchResult = { number: number; title: string };
+
+export async function searchMergedPRsByTitle(query: string): Promise<PRSearchResult[]> {
+	const r = await run("gh", [
+		"pr",
+		"list",
+		"--search",
+		`${query} in:title`,
+		"--state",
+		"merged",
+		"--limit",
+		"500",
+		"--json",
+		"number,title"
+	]);
+
+	if (r.code !== 0) {
+		throw new Error(r.stderr || "Failed to search PRs. Are you in a GitHub repo and authenticated?");
+	}
+
+	const data = JSON.parse(r.stdout) as Array<{ number: number; title: string }>;
+	return data;
+}
+
+export async function addLabelToPR(prNumber: number, label: string): Promise<void> {
+	const r = await run("gh", ["pr", "edit", String(prNumber), "--add-label", label]);
+	if (r.code !== 0) {
+		throw new Error(r.stderr || `Failed to add label to PR #${prNumber}`);
+	}
+}
+
 

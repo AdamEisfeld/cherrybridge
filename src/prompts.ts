@@ -129,3 +129,25 @@ export async function confirmCherryPick(
 	return res.value === true;
 }
 
+export async function confirmApplyLabel(
+	tickets: string[],
+	prs: { number: number; title: string }[],
+	label: string
+): Promise<boolean> {
+	console.log(`\n📋 Tickets extracted:`);
+	console.log(`   [${tickets.join(", ")}]`);
+	console.log(`\nPRs that will receive the label "${label}":`);
+	for (const pr of prs) {
+		console.log(`   - #${pr.number}: ${pr.title}`);
+	}
+
+	const res = await prompts({
+		type: "confirm",
+		name: "value",
+		message: `Apply label "${label}" to these ${prs.length} PR(s)?`,
+		initial: true
+	});
+
+	return res.value === true;
+}
+
