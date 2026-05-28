@@ -2,32 +2,41 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Command } from "commander";
 import prompts from "prompts";
-import { getFileConfig } from "../config.js";
 import { ensureGhInstalled, searchMergedPRsByTitle, addLabelToPR, ensureLabelExists } from "../gh.js";
-import { ensureGitRepo } from "../git.js";
+import { ensureGitRepo, getRepoCherrybridgeConfig } from "../git.js";
 import { confirmApplyLabel } from "../prompts.js";
 import { extractJiraTickets } from "../utils.js";
 
+function defaultLabelName(): string {
+	// YYYY-MM-DD in local time (so the label matches the user's calendar day, not UTC)
+	const now = new Date();
+	const y = now.getFullYear();
+	const m = String(now.getMonth() + 1).padStart(2, "0");
+	const d = String(now.getDate()).padStart(2, "0");
+	return `cherry-${y}-${m}-${d}`;
+}
+
 export function labelCommand(): Command {
 	const cmd = new Command("label")
-		.description("Extract JIRA tickets from text, find merged PRs by title, and apply a label.")
-		.option("--tickets <text>", "Inline text containing JIRA links/IDs")
+		.description("Find merged PRs by JIRA ticket and apply a label. Tickets may be passed as positional args, --tickets, or --tickets-file.")
+		.argument("[tickets...]", "JIRA ticket IDs (e.g. OGENG-1234 OGENG-2324); commas are ignored")
+		.option("--tickets <text>", "Inline text containing JIRA links/IDs (in addition to positional args)")
 		.option("--tickets-file <path>", "Path to file containing JIRA links/IDs")
-		.option("--label <label>", "Label to apply to the found PRs")
+		.option("--label <label>", "Label to apply to the found PRs (prompted if omitted)")
 		.option("--from <branch>", "Branch the PRs were merged into (default: development)")
 		.option("--prefix <prefix>", "JIRA ticket prefix (default: PROJECT)")
 		.option("--create", "Create the label in the repo if it does not exist")
 		.action(
-			async (opts: { tickets?: string; ticketsFile?: string; label?: string; from?: string; prefix?: string; create?: boolean }) => {
+			async (
+				positionalTickets: string[],
+				opts: { tickets?: string; ticketsFile?: string; label?: string; from?: string; prefix?: string; create?: boolean }
+			) => {
 				ensureGitRepo();
 				await ensureGhInstalled();
 
-				if (!opts.tickets && !opts.ticketsFile) {
-					console.error("Error: Provide at least one of --tickets or --tickets-file.");
-					process.exit(1);
-				}
-				if (!opts.label?.trim()) {
-					console.error("Error: --label is required.");
+				const hasPositional = positionalTickets.length > 0;
+				if (!hasPositional && !opts.tickets && !opts.ticketsFile) {
+					console.error("Error: provide ticket IDs as positional args, or via --tickets / --tickets-file.");
 					process.exit(1);
 				}
 
@@ -44,15 +53,22 @@ export function labelCommand(): Command {
 				if (opts.tickets?.trim()) {
 					resolvedText = resolvedText ? `${resolvedText}\n${opts.tickets}` : opts.tickets;
 				}
+				if (hasPositional) {
+					// Commas/whitespace between tokens are ignored by the JIRA regex; just join.
+					const joined = positionalTickets.join(" ");
+					resolvedText = resolvedText ? `${resolvedText}\n${joined}` : joined;
+				}
 
-				const fileConfig = await getFileConfig();
-				const prefix = opts.prefix ?? fileConfig?.prefix ?? "PROJECT";
+				const repoConfig = await getRepoCherrybridgeConfig();
+				const prefix = opts.prefix ?? repoConfig.prefix ?? "PROJECT";
 
 				const tickets = extractJiraTickets(resolvedText, prefix);
 				if (tickets.length === 0) {
-					console.log("No JIRA tickets found in the provided text.");
+					console.log("No JIRA tickets found in the provided input.");
 					return;
 				}
+
+				console.log(`Tickets (${tickets.length}): ${tickets.join(", ")}`);
 
 				let baseBranch = opts.from?.trim();
 				if (!baseBranch) {
@@ -70,6 +86,22 @@ export function labelCommand(): Command {
 					process.exit(1);
 				}
 
+				let labelToApply = opts.label?.trim();
+				if (!labelToApply) {
+					const res = await prompts({
+						type: "text",
+						name: "label",
+						message: "Label to apply",
+						initial: defaultLabelName(),
+						validate: (v: string | undefined) => (String(v || "").trim().length ? true : "Label is required")
+					});
+					labelToApply = (res.label as string)?.trim();
+				}
+				if (!labelToApply) {
+					console.error("Error: label is required.");
+					process.exit(1);
+				}
+
 				const prMap = new Map<number, { number: number; title: string }>();
 				for (const ticket of tickets) {
 					const prs = await searchMergedPRsByTitle(ticket, baseBranch);
@@ -84,7 +116,6 @@ export function labelCommand(): Command {
 					return;
 				}
 
-				const labelToApply = opts.label.trim();
 				const confirmed = await confirmApplyLabel(tickets, prs, labelToApply, baseBranch);
 				if (!confirmed) {
 					console.log("Label application cancelled.");

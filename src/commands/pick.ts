@@ -16,6 +16,7 @@ import {
 	getBranchCherrybridgeConfig
 } from "../git.js";
 import { promptForMissingValues, promptForVia, confirmCherryPick, promptToUseConfig } from "../prompts.js";
+import { printPRSummary } from "./pr.js";
 import type { PRInfo } from "../types.js";
 import { run } from "../utils.js";
 
@@ -91,6 +92,10 @@ export async function applyPendingCherryPicks(
 	console.log(
 		`Suggested:\n  git push -u origin ${promotionBranch}\n  gh pr create --base ${toBranch} --head ${promotionBranch}\n`
 	);
+
+	console.log("─".repeat(60));
+	console.log("Suggested PR title and body:\n");
+	await printPRSummary({ fromBranch, toBranch, label });
 }
 
 export function pickCommand(): Command {

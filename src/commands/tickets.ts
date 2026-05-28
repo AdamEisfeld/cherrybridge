@@ -1,7 +1,6 @@
 import { Command } from "commander";
-import { getFileConfig } from "../config.js";
 import { ensureGhInstalled, listMergedPRsWithDetails } from "../gh.js";
-import { ensureGitRepo } from "../git.js";
+import { ensureGitRepo, getRepoCherrybridgeConfig } from "../git.js";
 import { promptForMissingValues } from "../prompts.js";
 import { extractJiraTickets } from "../utils.js";
 
@@ -15,7 +14,7 @@ export function ticketsCommand(): Command {
 			ensureGitRepo();
 			await ensureGhInstalled();
 
-			const fileConfig = await getFileConfig();
+			const repoConfig = await getRepoCherrybridgeConfig();
 
 			const { from, label } = await promptForMissingValues({
 				from: opts.from,
@@ -23,7 +22,7 @@ export function ticketsCommand(): Command {
 				label: opts.label
 			});
 
-			const prefix = opts.prefix ?? fileConfig?.prefix ?? "PROJECT";
+			const prefix = opts.prefix ?? repoConfig.prefix ?? "PROJECT";
 
 			// Fetch PRs with details
 			const prs = await listMergedPRsWithDetails({ base: from, label });

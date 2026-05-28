@@ -9,7 +9,7 @@ Resumable cherry-picking of merged PR merge commits (selected by label) from one
 - **Automatic detection**: Detects already-picked commits using Git's `-x` flag
 - **Smart defaults**: Defaults to `development` → `staging` workflow (customizable)
 - **Branch config storage**: Remembers your settings per branch for seamless continuation
-- **File config**: Optional `.cherrybridgerc.json` for default `prefix` and `projectUrl`
+- **Repo config**: Per-repo defaults for `prefix` and `projectUrl` stored in `.git/config` and managed via `cherrybridge config`
 - **Conflict handling**: Clear instructions when conflicts occur
 
 ## Requirements
@@ -171,30 +171,56 @@ cherrybridge cancel
 
 ### `label`
 
-Extract JIRA tickets from a chunk of text (e.g. comma/newline-separated list or JIRA URLs), find all **merged** PRs in the repo whose title mentions any of those tickets and that were merged into a given base branch, and apply a label to those PRs. Only closed-and-merged PRs are considered (not open or cancelled). Before applying, the command shows the extracted tickets and the list of PRs that will be labeled and prompts for confirmation.
+Find all **merged** PRs whose title mentions any of a set of JIRA tickets (and that were merged into a given base branch) and apply a label to those PRs. Only closed-and-merged PRs are considered. Before applying, the command shows the extracted tickets and the list of PRs that will be labeled and prompts for confirmation. Duplicate ticket IDs are de-duplicated automatically.
 
-**Basic usage:**
+**Basic usage (positional):**
 ```bash
-cherrybridge label --tickets "PROJECT-123, PROJECT-456" --label "promote-to-staging"
+cherrybridge label PROJECT-123 PROJECT-456 PROJECT-789
+# commas are ignored, so this also works:
+cherrybridge label PROJECT-123, PROJECT-456, PROJECT-789
 ```
 
-**With a file:**
+If `--label` is omitted, you'll be prompted for the label name with a default of `cherry-YYYY-MM-DD` (today's date).
+
+**Other input sources (combinable):**
 ```bash
-cherrybridge label --tickets-file tickets.txt --label "promote-to-staging"
+cherrybridge label --tickets "PROJECT-123, PROJECT-456" --label promote-to-staging
+cherrybridge label --tickets-file tickets.txt --label promote-to-staging
 ```
 
 **Options:**
-- `--tickets <text>`: Inline text containing JIRA links or IDs (optional if `--tickets-file` is set).
-- `--tickets-file <path>`: Path to a file containing the same kind of text (optional if `--tickets` is set). At least one of `--tickets` or `--tickets-file` is required.
-- `--label <label>`: Label to apply to the found PRs (required).
+- `[tickets...]`: Positional JIRA ticket IDs (e.g. `PROJECT-123 PROJECT-456`). Commas between tokens are tolerated.
+- `--tickets <text>`: Inline text containing JIRA links/IDs (combined with any positional args).
+- `--tickets-file <path>`: Path to a file containing JIRA links/IDs (combined with any other sources). At least one source of tickets is required.
+- `--label <label>`: Label to apply to the found PRs. If omitted, you'll be prompted with default `cherry-YYYY-MM-DD`.
 - `--from <branch>`: Branch the PRs were merged into. If omitted, you are prompted with default `development`.
-- `--prefix <prefix>`: JIRA ticket prefix for extraction (optional; default from `.cherrybridgerc.json` or `PROJECT`).
+- `--prefix <prefix>`: JIRA ticket prefix for extraction (optional; default from `cherrybridge config` or `PROJECT`).
 - `--create`: Create the label in the repository if it does not exist (uses `gh label create --force`). Omit to keep current behavior (label must already exist).
 
 **What happens:**
-- Tickets are extracted from the combined text (URLs and plain IDs like `PROJECT-123` are supported).
+- Tickets are extracted from the combined input (URLs and plain IDs like `PROJECT-123` are supported) and de-duplicated.
 - Only PRs merged into the specified (or prompted) branch are considered; PRs are searched by title within that branch.
 - You see a summary of tickets and PRs and are asked to confirm before any labels are applied.
+
+### `config`
+
+Manage cherrybridge defaults stored in the repo's `.git/config`. Supported keys are `prefix` (JIRA ticket prefix) and `projectUrl` (base URL for ticket links in `pr` output).
+
+**Subcommands:**
+```bash
+cherrybridge config set <key> <value>   # set a value
+cherrybridge config get <key>           # print a value
+cherrybridge config list                # list all set values
+cherrybridge config unset <key>         # remove a value
+```
+
+**Example:**
+```bash
+cherrybridge config set prefix PROJECT
+cherrybridge config set projectUrl https://company.atlassian.net/browse
+```
+
+Values are stored under `cherrybridge.<key>` in `.git/config` and are local to the clone (not pushed to GitHub). See [Repo config](#repo-config) below for more.
 
 ## Advanced Usage
 
@@ -239,24 +265,30 @@ cherrybridge continue
 # No prompts needed!
 ```
 
-### File config
+### Repo config
 
-You can set default `prefix` and `projectUrl` in a config file so you don't have to pass them every time.
+You can set default `prefix` and `projectUrl` per repo so you don't have to pass them every time. Values are stored in the repo's `.git/config` (local only — not pushed to GitHub) and managed via the `config` subcommand.
 
-- **Filename**: `.cherrybridgerc.json`
-- **Location**: The directory where you run cherrybridge (current working directory).
 - **Keys**: `prefix` (JIRA ticket prefix), `projectUrl` (base URL for ticket links in the `pr` command body).
-- **Precedence**: Command-line flags override the file; the file overrides built-in defaults.
+- **Precedence**: Command-line flags override repo config; repo config overrides built-in defaults.
+- **Storage**: `git config cherrybridge.<key>` (i.e., `.git/config`).
 
-**Example `.cherrybridgerc.json`:**
-```json
-{
-  "prefix": "PROJECT",
-  "projectUrl": "https://company.atlassian.net/browse"
-}
+**Set values:**
+```bash
+cherrybridge config set prefix PROJECT
+cherrybridge config set projectUrl https://company.atlassian.net/browse
 ```
 
-If the file is missing or invalid, cherrybridge continues with defaults and any flags you passed.
+**Inspect:**
+```bash
+cherrybridge config list
+cherrybridge config get prefix
+```
+
+**Remove:**
+```bash
+cherrybridge config unset projectUrl
+```
 
 ### Working with Multiple Promotion Branches
 

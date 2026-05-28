@@ -150,4 +150,32 @@ export async function removeBranchCherrybridgeConfig(branch: string): Promise<vo
 	await run("git", ["config", "--unset-all", `branch.${branch}.cherrybridge.toBranch`]);
 }
 
+export const REPO_CONFIG_KEYS = ["prefix", "projectUrl"] as const;
+export type RepoConfigKey = typeof REPO_CONFIG_KEYS[number];
+
+export type RepoConfig = {
+	prefix?: string;
+	projectUrl?: string;
+};
+
+export async function getRepoCherrybridgeConfig(): Promise<RepoConfig> {
+	const prefix = await run("git", ["config", "cherrybridge.prefix"]);
+	const projectUrl = await run("git", ["config", "cherrybridge.projectUrl"]);
+	return {
+		prefix: prefix.code === 0 ? prefix.stdout.trim() : undefined,
+		projectUrl: projectUrl.code === 0 ? projectUrl.stdout.trim() : undefined
+	};
+}
+
+export async function setRepoCherrybridgeConfigValue(key: RepoConfigKey, value: string): Promise<void> {
+	const r = await run("git", ["config", `cherrybridge.${key}`, value]);
+	if (r.code !== 0) throw new Error(r.stderr || `Failed to set cherrybridge.${key}.`);
+}
+
+export async function unsetRepoCherrybridgeConfigValue(key: RepoConfigKey): Promise<boolean> {
+	const r = await run("git", ["config", "--unset", `cherrybridge.${key}`]);
+	// git config --unset returns 5 if the key doesn't exist; treat that as "nothing to do"
+	return r.code === 0;
+}
+
 

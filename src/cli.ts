@@ -6,6 +6,7 @@ import { prCommand } from "./commands/pr.js";
 import { statusCommand } from "./commands/status.js";
 import { ticketsCommand } from "./commands/tickets.js";
 import { labelCommand } from "./commands/label.js";
+import { configCommand } from "./commands/config.js";
 
 export async function runCLI(): Promise<void> {
 	const program = new Command();
@@ -22,6 +23,7 @@ export async function runCLI(): Promise<void> {
 	program.addCommand(statusCommand());
 	program.addCommand(ticketsCommand());
 	program.addCommand(labelCommand());
+	program.addCommand(configCommand());
 
 	await program.parseAsync(process.argv);
 }
