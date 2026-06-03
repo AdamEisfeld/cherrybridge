@@ -150,10 +150,12 @@ export async function addLabelToPR(prNumber: number, label: string): Promise<voi
 }
 
 export async function ensureLabelExists(label: string): Promise<void> {
-	const r = await run("gh", ["label", "create", label, "--force", "--color", "ededed"]);
-	if (r.code !== 0) {
-		throw new Error(r.stderr || "Failed to create label.");
-	}
+	// Create without --force so we don't clobber the color/description of an existing label.
+	const r = await run("gh", ["label", "create", label, "--color", "ededed"]);
+	if (r.code === 0) return;
+	// "already exists" is fine — gh returns non-zero in that case, but it's not an error for us.
+	if (/already exists/i.test(r.stderr)) return;
+	throw new Error(r.stderr || "Failed to create label.");
 }
 
 

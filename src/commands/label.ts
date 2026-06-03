@@ -25,11 +25,10 @@ export function labelCommand(): Command {
 		.option("--label <label>", "Label to apply to the found PRs (prompted if omitted)")
 		.option("--from <branch>", "Branch the PRs were merged into (default: development)")
 		.option("--prefix <prefix>", "JIRA ticket prefix (default: PROJECT)")
-		.option("--create", "Create the label in the repo if it does not exist")
 		.action(
 			async (
 				positionalTickets: string[],
-				opts: { tickets?: string; ticketsFile?: string; label?: string; from?: string; prefix?: string; create?: boolean }
+				opts: { tickets?: string; ticketsFile?: string; label?: string; from?: string; prefix?: string }
 			) => {
 				ensureGitRepo();
 				await ensureGhInstalled();
@@ -122,10 +121,7 @@ export function labelCommand(): Command {
 					return;
 				}
 
-				if (opts.create) {
-					console.log("Ensuring label exists...");
-					await ensureLabelExists(labelToApply);
-				}
+				await ensureLabelExists(labelToApply);
 
 				const failures: number[] = [];
 				for (const pr of prs) {
